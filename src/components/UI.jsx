@@ -119,7 +119,3 @@ export const UI = ({ hidden, ...props }) => {
 		</div>
 	)
 }
-
-UI.propTypes = {
-	hidden: PropTypes.bool,
-}

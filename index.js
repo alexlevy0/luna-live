@@ -1,30 +1,34 @@
-import { exec } from "node:child_process"
 import cors from "cors"
 import dotenv from "dotenv"
 import voice from "elevenlabs-node"
 import express from "express"
+import { exec } from "node:child_process"
 import { promises as fs } from "node:fs"
 import OpenAI from "openai"
 import { WebcastPushConnection } from "tiktok-live-connector"
 
 dotenv.config()
 
-const init = async () => {
+const tiktokLiveMessages = []
+
+const initTiktokLiveListener = async (tiktokLiveAccount) => {
+	
 	try {
-		const tiktokLiveConnection = new WebcastPushConnection("maisondivination")
+		const tiktokLiveConnection = new WebcastPushConnection(tiktokLiveAccount)
 		const state = await tiktokLiveConnection.connect()
 
 		console.info(`Connected to roomId ${state.roomId}`)
+		console.info(`Connected to tiktokLiveAccount ${tiktokLiveAccount}`)
 
 		tiktokLiveConnection.on("chat", (data) => {
 			console.log(`${data.uniqueId} (userId:${data.userId}) writes: ${data.comment}`)
+			tiktokLiveMessages.push(data.comment)
+			console.log(`tiktokLiveMessages : ${tiktokLiveMessages.length}`)
 		})
 	} catch (error) {
 		console.error(error)
 	}
 }
-// TODO
-// init()
 
 const openai = new OpenAI({
 	apiKey: process.env.OPENAI_API_KEY || "-", // Your OpenAI API key here, I used "-" to avoid errors when the key is not set but you should not do that
@@ -70,6 +74,10 @@ const lipSyncMessage = async (message) => {
 
 app.post("/chat", async (req, res) => {
 	const userMessage = req.body.message
+	if (userMessage.match(/^init/)) {
+		const tiktokLiveAccount = userMessage.replace("init:", "")
+		initTiktokLiveListener(tiktokLiveAccount)
+	}
 	if (!userMessage || !elevenLabsApiKey || openai.apiKey === "-") {
 		res.send({
 			messages: [
