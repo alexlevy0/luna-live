@@ -5,7 +5,26 @@ import voice from "elevenlabs-node"
 import express from "express"
 import { promises as fs } from "node:fs"
 import OpenAI from "openai"
+import { WebcastPushConnection } from "tiktok-live-connector"
+
 dotenv.config()
+
+const init = async () => {
+	try {
+		const tiktokLiveConnection = new WebcastPushConnection("maisondivination")
+		const state = await tiktokLiveConnection.connect()
+
+		console.info(`Connected to roomId ${state.roomId}`)
+
+		tiktokLiveConnection.on("chat", (data) => {
+			console.log(`${data.uniqueId} (userId:${data.userId}) writes: ${data.comment}`)
+		})
+	} catch (error) {
+		console.error(error)
+	}
+}
+// TODO
+// init()
 
 const openai = new OpenAI({
 	apiKey: process.env.OPENAI_API_KEY || "-", // Your OpenAI API key here, I used "-" to avoid errors when the key is not set but you should not do that
