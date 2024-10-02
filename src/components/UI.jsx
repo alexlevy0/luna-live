@@ -31,7 +31,7 @@ export const UI = ({ hidden, ...props }) => {
 				console.warn("messages.length has not changed")
 				return
 			}
-
+			// TODO Replace by a OpenAI API call bc it's take too a long time with Ollama
 			const res = await fetch(`http://localhost:11434/api/chat`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
@@ -53,13 +53,13 @@ export const UI = ({ hidden, ...props }) => {
 					stream: false,
 				}),
 			})
-			console.log('Ollama END')
 			const {
 				message: { content },
 			} = await res.json()
 			// const contentJson = JSON.parse(content)
 			// console.log({ contentJson })
 			console.log({ content })
+			console.timeEnd("ma mesure de temps");	
 		}
 		// init()
 		setInterval(init, 10000)
