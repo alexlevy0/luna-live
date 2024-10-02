@@ -12,7 +12,6 @@ dotenv.config()
 const tiktokLiveMessages = []
 
 const initTiktokLiveListener = async (tiktokLiveAccount) => {
-	
 	try {
 		const tiktokLiveConnection = new WebcastPushConnection(tiktokLiveAccount)
 		const state = await tiktokLiveConnection.connect()
@@ -42,8 +41,8 @@ app.use(express.json())
 app.use(cors())
 const port = 3000
 
-app.get("/", (req, res) => {
-	res.send("Hello World!")
+app.get("/hello", (req, res) => {
+	res.send(JSON.stringify(tiktokLiveMessages))
 })
 
 app.get("/voices", async (req, res) => {
@@ -74,7 +73,16 @@ const lipSyncMessage = async (message) => {
 
 app.post("/chat", async (req, res) => {
 	const userMessage = req.body.message
-	if (userMessage.match(/^init/)) {
+	// console.log("----userMessage", userMessage)
+
+	// console.log("----yo", req.originalUrl)
+	if (req.originalUrl?.match(/getChat/)) {
+		// console.log("----yo", req.originalUrl)
+		res.send(tiktokLiveMessages)
+		// res.send('salut')
+		return
+	}
+	if (userMessage?.match(/^init/)) {
 		const tiktokLiveAccount = userMessage.replace("init:", "")
 		initTiktokLiveListener(tiktokLiveAccount)
 	}
@@ -92,8 +100,8 @@ app.post("/chat", async (req, res) => {
 					text: "I missed you so much... Please don't go for so long!",
 					audio: await audioFileToBase64("audios/intro_1.wav"),
 					lipsync: await readJsonTranscript("audios/intro_1.json"),
-					facialExpression: "sad",
-					animation: "Crying",
+					facialExpression: "smile",
+					animation: "Rumba",
 				},
 			],
 		})
@@ -111,12 +119,13 @@ app.post("/chat", async (req, res) => {
 			{
 				role: "system",
 				content: `
-        You are a virtual girlfriend.
-        You will always reply with a JSON array of messages. With a maximum of 3 messages.
-        Each message has a text, facialExpression, and animation property.
-        The different facial expressions are: smile, sad, angry, surprised, funnyFace, and default.
-        The different animations are: Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, and Angry. 
-        `,
+        				You are a virtual girlfriend.
+        				You are a virtual girlfriend.
+        				You will always reply with a JSON array of messages. With a maximum of 3 messages.
+        				Each message has a text, facialExpression, and animation property.
+        				The different facial expressions are: smile, sad, angry, surprised, funnyFace, and default.
+        				The different animations are: Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, and Angry. 
+        				`,
 			},
 			{
 				role: "user",
@@ -142,7 +151,6 @@ app.post("/chat", async (req, res) => {
 
 	res.send({ messages })
 })
-
 const readJsonTranscript = async (file) => {
 	const data = await fs.readFile(file, "utf8")
 	return JSON.parse(data)

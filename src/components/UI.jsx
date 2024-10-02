@@ -1,11 +1,11 @@
-import { useRef } from "react"
+import { useRef, useState } from "react"
 
 import { useChat } from "../hooks/useChat"
 
 export const UI = ({ hidden, ...props }) => {
 	const input = useRef()
 	const { chat, loading, cameraZoomed, setCameraZoomed, message } = useChat()
-
+	const [messages, setMessages] = useState([])
 
 	const sendMessage = () => {
 		const text = input.current.value
@@ -13,6 +13,57 @@ export const UI = ({ hidden, ...props }) => {
 			chat(text)
 			input.current.value = ""
 		}
+		const init = async () => {
+			const backendUrl = "http://localhost:3000"
+			const data = await fetch(`${backendUrl}/chat?getChat=true`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+			})
+			const resp = await data.json()
+			console.log({ resp })
+			setMessages(resp)
+
+			console.log('resp.length :', resp.length)
+			console.log('messages.length :', messages.length)
+			if (resp.length === messages.length) {
+				console.warn("messages.length has not changed")
+				return
+			}
+
+			const res = await fetch(`http://localhost:11434/api/chat`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
+					model: "llama3.1:latest",
+					messages: [
+						// {
+						// 	role: "system",
+						// 	content: `
+						// 		Tu es une petite amie virtuelle.
+						// 		Tu répondras toujours avec un tableau JSON de messages. Avec un maximum d'un message.
+						// 		Chaque message a une propriété texte, facialExpression et animation.
+						// 		Les différentes expressions faciales sont : smile, sad, angry, surprised, funnyFace, et default.
+						// 		Les différentes animations sont : Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, et Angry.
+						// 		`,
+						// },
+						{ role: "user", content: resp[resp.length - 1] },
+					],
+					stream: false,
+				}),
+			})
+			console.log('Ollama END')
+			const {
+				message: { content },
+			} = await res.json()
+			// const contentJson = JSON.parse(content)
+			// console.log({ contentJson })
+			console.log({ content })
+		}
+		// init()
+		setInterval(init, 10000)
+		// setInterval(init, 1000)
 	}
 	if (hidden) {
 		return null
@@ -23,6 +74,9 @@ export const UI = ({ hidden, ...props }) => {
 			<div className="self-start backdrop-blur-md bg-white bg-opacity-50 p-4 rounded-lg">
 				<h1 className="font-black text-xl">My Virtual GF</h1>
 				<p>I will always love you ❤️</p>
+				{messages.map((m, i) => (
+					<p>{m}</p>
+				))}
 			</div>
 			<div className="w-full flex flex-col items-end justify-center gap-4">
 				<button
