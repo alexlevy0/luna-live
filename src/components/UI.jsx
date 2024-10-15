@@ -69,7 +69,7 @@ export const UI = ({ hidden, ...props }) => {
 		}
 		// init()
 		// setInterval(init, 10000)
-		// setInterval(init, 5000)
+		setInterval(init, 5000)
 	}, [])
 
 	if (hidden) {

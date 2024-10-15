@@ -14,7 +14,7 @@ const elevenlabs = new ElevenLabsClient({
 
 dotenv.config()
 
-const tiktokLiveMessages = []
+let tiktokLiveLastMessage = ""
 
 const initTiktokLiveListener = async (tiktokLiveAccount) => {
 	try {
@@ -26,8 +26,7 @@ const initTiktokLiveListener = async (tiktokLiveAccount) => {
 
 		tiktokLiveConnection.on("chat", (data) => {
 			// console.log(`${data.uniqueId} (userId:${data.userId}) writes: ${data.comment}`)
-			tiktokLiveMessages.push(data.comment)
-			askGPT(data.comment)
+			tiktokLiveLastMessage = data.comment
 			console.log(`chat:${data.comment}`)
 		})
 	} catch (error) {
@@ -56,18 +55,33 @@ app.post("/chat", async (req, res) => {
 	if (userMessage?.match(/^init/)) {
 		const tiktokLiveAccount = userMessage.replace("init:", "")
 		initTiktokLiveListener(tiktokLiveAccount)
-		res.send({})
+		res.send({
+			messages: [
+				{
+					text: "Hey dear... How was your day?",
+					facialExpression: "smile",
+					animation: "Talking_1",
+				},
+				{
+					text: "I missed you so much... Please don't go for so long!",
+					facialExpression: "smile",
+					animation: "Rumba",
+				},
+			],
+		})
 		return
 	}
 	if (!req.originalUrl?.match(/getChat/)) {
-		res.send({ tiktokLiveMessages })
+		const messages = await askGPT(userMessage)
+		res.send({ messages })
 		return
 	}
-	// console.log('tiktokLiveMessages : ', tiktokLiveMessages[tiktokLiveMessages.length - 1]);
+	if (!tiktokLiveLastMessage) {
+		res.send({ messages: [] })
+		return
+	}
+	const messages = await askGPT(tiktokLiveLastMessage)
 	
-
-	const messages = await askGPT(userMessage)
-	// // tiktokLiveMessages.pop()
 	console.log({ messages })
 	res.send({ messages })
 })
@@ -77,6 +91,7 @@ app.listen(port, () => {
 })
 
 const askGPT = async (message) => {
+	tiktokLiveLastMessage = ""
 	const completion = await openai.chat.completions.create({
 		model: "gpt-3.5-turbo-1106",
 		max_tokens: 1000,
