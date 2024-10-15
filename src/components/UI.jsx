@@ -1,18 +1,52 @@
-import { useRef, useState } from "react"
+import { useRef, useState, useEffect } from "react"
 
 import { useChat } from "../hooks/useChat"
+
+const askGPT = async (msg) => {
+	const res = await fetch(`http://localhost:11434/api/chat`, {
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+		body: JSON.stringify({
+			model: "llama2-uncensored:latest",
+			messages: [
+				// {
+				// 	role: "system",
+				// 	content: `
+				// 		Tu es une petite amie virtuelle.
+				// 		Tu répondras toujours avec un tableau JSON de messages. Avec un maximum d'un message.
+				// 		Chaque message a une propriété texte, facialExpression et animation.
+				// 		Les différentes expressions faciales sont : smile, sad, angry, surprised, funnyFace, et default.
+				// 		Les différentes animations sont : Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, et Angry.
+				// 		`,
+				// },
+				{ role: "user", content: msg },
+				// { role: "user", content: "Salut" },
+			],
+			stream: false,
+		}),
+	})
+	const {
+		message: { content },
+	} = await res.json()
+	console.log({ content })
+	return content
+}
 
 export const UI = ({ hidden, ...props }) => {
 	const input = useRef()
 	const { chat, loading, cameraZoomed, setCameraZoomed, message } = useChat()
 	const [messages, setMessages] = useState([])
 
-	const sendMessage = () => {
+	const sendMessage = async () => {
 		const text = input.current.value
 		if (!loading && !message) {
 			chat(text)
 			input.current.value = ""
 		}
+	}
+	
+
+	useEffect(() => {
 		const init = async () => {
 			const backendUrl = "http://localhost:3000"
 			const data = await fetch(`${backendUrl}/chat?getChat=true`, {
@@ -25,58 +59,30 @@ export const UI = ({ hidden, ...props }) => {
 			console.log({ resp })
 			setMessages(resp)
 
-			console.log('resp.length :', resp.length)
-			console.log('messages.length :', messages.length)
-			if (resp.length === messages.length) {
+			console.log("resp.length :", resp.length)
+			console.log("messages.length :", messages.length)
+			if (!messages || resp.length === messages.length) {
 				console.warn("messages.length has not changed")
 				return
 			}
-			// TODO Replace by a OpenAI API call bc it's take too a long time with Ollama
-			const res = await fetch(`http://localhost:11434/api/chat`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					model: "llama3.1:latest",
-					messages: [
-						// {
-						// 	role: "system",
-						// 	content: `
-						// 		Tu es une petite amie virtuelle.
-						// 		Tu répondras toujours avec un tableau JSON de messages. Avec un maximum d'un message.
-						// 		Chaque message a une propriété texte, facialExpression et animation.
-						// 		Les différentes expressions faciales sont : smile, sad, angry, surprised, funnyFace, et default.
-						// 		Les différentes animations sont : Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, et Angry.
-						// 		`,
-						// },
-						{ role: "user", content: resp[resp.length - 1] },
-					],
-					stream: false,
-				}),
-			})
-			const {
-				message: { content },
-			} = await res.json()
-			// const contentJson = JSON.parse(content)
-			// console.log({ contentJson })
-			console.log({ content })
-			console.timeEnd("ma mesure de temps");	
+			// askGPT(resp[resp.length - 1])
 		}
 		// init()
-		setInterval(init, 10000)
-		// setInterval(init, 1000)
-	}
+		// setInterval(init, 10000)
+		// setInterval(init, 5000)
+	}, [])
+
 	if (hidden) {
 		return null
 	}
-
 	return (
 		<div className="fixed top-0 left-0 right-0 bottom-0 z-10 flex justify-between p-4 flex-col pointer-events-none">
 			<div className="self-start backdrop-blur-md bg-white bg-opacity-50 p-4 rounded-lg">
-				<h1 className="font-black text-xl">My Virtual GF</h1>
-				<p>I will always love you ❤️</p>
-				{messages.map((m, i) => (
+				<h1 className="font-black text-xl">Luna ❤️</h1>
+				<p>I will always be here for you</p>
+				{/* {messages?.map((m, i) => (
 					<p>{m}</p>
-				))}
+				))} */}
 			</div>
 			<div className="w-full flex flex-col items-end justify-center gap-4">
 				<button
@@ -86,7 +92,6 @@ export const UI = ({ hidden, ...props }) => {
 					aria-label={cameraZoomed ? "Zoom out" : "Zoom in"}
 				>
 					{cameraZoomed ? (
-						// biome-ignore lint/a11y/noSvgWithoutTitle: <explanation>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							fill="none"
@@ -102,7 +107,6 @@ export const UI = ({ hidden, ...props }) => {
 							/>
 						</svg>
 					) : (
-						// biome-ignore lint/a11y/noSvgWithoutTitle: <explanation>
 						<svg
 							xmlns="http://www.w3.org/2000/svg"
 							fill="none"
@@ -132,7 +136,6 @@ export const UI = ({ hidden, ...props }) => {
 					className="pointer-events-auto bg-pink-500 hover:bg-pink-600 text-white p-4 rounded-md"
 					aria-label="Toggle green screen"
 				>
-					{/* biome-ignore lint/a11y/noSvgWithoutTitle: <explanation> */}
 					<svg
 						xmlns="http://www.w3.org/2000/svg"
 						fill="none"
@@ -165,6 +168,7 @@ export const UI = ({ hidden, ...props }) => {
 					onClick={sendMessage}
 					className={`bg-pink-500 hover:bg-pink-600 text-white p-4 px-10 font-semibold uppercase rounded-md ${
 						loading || message ? "cursor-not-allowed opacity-30" : ""
+						// false ? "cursor-not-allowed opacity-30" : ""
 					}`}
 				>
 					Send

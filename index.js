@@ -1,11 +1,16 @@
 import cors from "cors"
 import dotenv from "dotenv"
 import voice from "elevenlabs-node"
+import { ElevenLabsClient, play } from "elevenlabs"
 import express from "express"
 import { exec } from "node:child_process"
 import { promises as fs } from "node:fs"
 import OpenAI from "openai"
 import { WebcastPushConnection } from "tiktok-live-connector"
+
+const elevenlabs = new ElevenLabsClient({
+	apiKey: "sk_367375957f9f9a888c2c3869b93778dc22b88098bb4872e3", // Defaults to process.env.ELEVENLABS_API_KEY
+})
 
 dotenv.config()
 
@@ -20,9 +25,10 @@ const initTiktokLiveListener = async (tiktokLiveAccount) => {
 		console.info(`Connected to tiktokLiveAccount ${tiktokLiveAccount}`)
 
 		tiktokLiveConnection.on("chat", (data) => {
-			console.log(`${data.uniqueId} (userId:${data.userId}) writes: ${data.comment}`)
+			// console.log(`${data.uniqueId} (userId:${data.userId}) writes: ${data.comment}`)
 			tiktokLiveMessages.push(data.comment)
-			console.log(`tiktokLiveMessages : ${tiktokLiveMessages.length}`)
+			askGPT(data.comment)
+			console.log(`chat:${data.comment}`)
 		})
 	} catch (error) {
 		console.error(error)
@@ -30,84 +36,47 @@ const initTiktokLiveListener = async (tiktokLiveAccount) => {
 }
 
 const openai = new OpenAI({
-	apiKey: process.env.OPENAI_API_KEY || "-", // Your OpenAI API key here, I used "-" to avoid errors when the key is not set but you should not do that
+	// apiKey: process.env.OPENAI_API_KEY || "-", // Your OpenAI API key here, I used "-" to avoid errors when the key is not set but you should not do that
+	apiKey: "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",
 })
 
-const elevenLabsApiKey = process.env.ELEVEN_LABS_API_KEY
-const voiceID = "kgG7dCoKCfLehAPWkJOE"
+// const elevenLabsApiKey = process.env.ELEVEN_LABS_API_KEY
+const elevenLabsApiKey = "sk_367375957f9f9a888c2c3869b93778dc22b88098bb4872e3"
+// const voiceID = "kgG7dCoKCfLehAPWkJOE"
+const voiceID = "C7VHv0h3cGzIczU4biXw" // FR
 
 const app = express()
 app.use(express.json())
 app.use(cors())
 const port = 3000
 
-app.get("/hello", (req, res) => {
-	res.send(JSON.stringify(tiktokLiveMessages))
-})
-
-app.get("/voices", async (req, res) => {
-	res.send(await voice.getVoices(elevenLabsApiKey))
-})
-
-const execCommand = (command) => {
-	return new Promise((resolve, reject) => {
-		exec(command, (error, stdout, stderr) => {
-			if (error) reject(error)
-			resolve(stdout)
-		})
-	})
-}
-
-const lipSyncMessage = async (message) => {
-	const time = new Date().getTime()
-	console.log(`Starting conversion for message ${message}`)
-	await execCommand(
-		`ffmpeg -y -i audios/message_${message}.mp3 audios/message_${message}.wav`,
-		// -y to overwrite the file
-	)
-	console.log(`Conversion done in ${new Date().getTime() - time}ms`)
-	await execCommand(`./bin/rhubarb -f json -o audios/message_${message}.json audios/message_${message}.wav -r phonetic`)
-	// -r phonetic is faster but less accurate
-	console.log(`Lip sync done in ${new Date().getTime() - time}ms`)
-}
-
 app.post("/chat", async (req, res) => {
 	const userMessage = req.body.message
-	// console.log("----userMessage", userMessage)
 
-	// console.log("----yo", req.originalUrl)
-	if (req.originalUrl?.match(/getChat/)) {
-		// console.log("----yo", req.originalUrl)
-		res.send(tiktokLiveMessages)
-		// res.send('salut')
-		return
-	}
 	if (userMessage?.match(/^init/)) {
 		const tiktokLiveAccount = userMessage.replace("init:", "")
 		initTiktokLiveListener(tiktokLiveAccount)
-	}
-	if (!userMessage || !elevenLabsApiKey || openai.apiKey === "-") {
-		res.send({
-			messages: [
-				{
-					text: "Hey dear... How was your day?",
-					audio: await audioFileToBase64("audios/intro_0.wav"),
-					lipsync: await readJsonTranscript("audios/intro_0.json"),
-					facialExpression: "smile",
-					animation: "Talking_1",
-				},
-				{
-					text: "I missed you so much... Please don't go for so long!",
-					audio: await audioFileToBase64("audios/intro_1.wav"),
-					lipsync: await readJsonTranscript("audios/intro_1.json"),
-					facialExpression: "smile",
-					animation: "Rumba",
-				},
-			],
-		})
+		res.send({})
 		return
 	}
+	if (!req.originalUrl?.match(/getChat/)) {
+		res.send({ tiktokLiveMessages })
+		return
+	}
+	// console.log('tiktokLiveMessages : ', tiktokLiveMessages[tiktokLiveMessages.length - 1]);
+	
 
+	const messages = await askGPT(userMessage)
+	// // tiktokLiveMessages.pop()
+	console.log({ messages })
+	res.send({ messages })
+})
+
+app.listen(port, () => {
+	console.log(`Virtual Girlfriend listening on port ${port}`)
+})
+
+const askGPT = async (message) => {
 	const completion = await openai.chat.completions.create({
 		model: "gpt-3.5-turbo-1106",
 		max_tokens: 1000,
@@ -119,17 +88,17 @@ app.post("/chat", async (req, res) => {
 			{
 				role: "system",
 				content: `
-        				You are a virtual girlfriend.
-        				You are a virtual girlfriend.
-        				You will always reply with a JSON array of messages. With a maximum of 3 messages.
-        				Each message has a text, facialExpression, and animation property.
-        				The different facial expressions are: smile, sad, angry, surprised, funnyFace, and default.
-        				The different animations are: Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, and Angry. 
-        				`,
+					You are a virtual girlfriend.
+					You will always reply with a JSON array of messages. With a maximum of 3 messages.
+					Each message has a text, facialExpression, and animation property.
+					The different facial expressions are: smile, sad, angry, surprised, funnyFace, and default.
+					The different animations are: Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, and Angry. 
+					`,
 			},
 			{
 				role: "user",
-				content: userMessage || "Hello",
+				// content: tiktokLiveMessages[tiktokLiveMessages.length - 1] || "Hello",
+				content: message || "Hello",
 			},
 		],
 	})
@@ -137,30 +106,12 @@ app.post("/chat", async (req, res) => {
 	if (messages.messages) {
 		messages = messages.messages // ChatGPT is not 100% reliable, sometimes it directly returns an array and sometimes a JSON object with a messages property
 	}
-	for (let i = 0; i < messages.length; i++) {
-		const message = messages[i]
-		// generate audio file
-		const fileName = `audios/message_${i}.mp3` // The name of your audio file
-		const textInput = message.text // The text you wish to convert to speech
-		await voice.textToSpeech(elevenLabsApiKey, voiceID, fileName, textInput)
-		// generate lipsync
-		await lipSyncMessage(i)
-		message.audio = await audioFileToBase64(fileName)
-		message.lipsync = await readJsonTranscript(`audios/message_${i}.json`)
-	}
-
-	res.send({ messages })
-})
-const readJsonTranscript = async (file) => {
-	const data = await fs.readFile(file, "utf8")
-	return JSON.parse(data)
+	console.log(`resp:${messages[0].text}`)
+	const audio = await elevenlabs.generate({
+		voice: "Rachel",
+		text: messages[messages.length - 1].text,
+		model_id: "eleven_multilingual_v2",
+	})
+	play(audio)
+	return messages
 }
-
-const audioFileToBase64 = async (file) => {
-	const data = await fs.readFile(file)
-	return data.toString("base64")
-}
-
-app.listen(port, () => {
-	console.log(`Virtual Girlfriend listening on port ${port}`)
-})
