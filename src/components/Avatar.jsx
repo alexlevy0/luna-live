@@ -123,6 +123,7 @@ export function Avatar(props) {
 		setLipsync(message.lipsync)
 		setTimeout(() => {
 			onMessagePlayed()
+			setAnimation("Idle")
 		}, 3000)
 	}, [message])
 

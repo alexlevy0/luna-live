@@ -34,8 +34,7 @@ const askGPT = async (msg) => {
 
 export const UI = ({ hidden, ...props }) => {
 	const input = useRef()
-	const { chat, loading, cameraZoomed, setCameraZoomed, message } = useChat()
-	const [messages, setMessages] = useState([])
+	const { chatPool, chat, loading, cameraZoomed, setCameraZoomed, message } = useChat()
 
 	const sendMessage = async () => {
 		const text = input.current.value
@@ -44,31 +43,11 @@ export const UI = ({ hidden, ...props }) => {
 			input.current.value = ""
 		}
 	}
-	
 
 	useEffect(() => {
 		const init = async () => {
-			const backendUrl = "http://localhost:3000"
-			const data = await fetch(`${backendUrl}/chat?getChat=true`, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-			})
-			const resp = await data.json()
-			console.log({ resp })
-			setMessages(resp)
-
-			console.log("resp.length :", resp.length)
-			console.log("messages.length :", messages.length)
-			if (!messages || resp.length === messages.length) {
-				console.warn("messages.length has not changed")
-				return
-			}
-			// askGPT(resp[resp.length - 1])
+			chatPool()
 		}
-		// init()
-		// setInterval(init, 10000)
 		setInterval(init, 5000)
 	}, [])
 

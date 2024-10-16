@@ -5,6 +5,7 @@ const backendUrl = "http://localhost:3000"
 const ChatContext = createContext()
 
 export const ChatProvider = ({ children }) => {
+
 	const chat = async (message) => {
 		setLoading(true)
 		const data = await fetch(`${backendUrl}/chat`, {
@@ -18,10 +19,23 @@ export const ChatProvider = ({ children }) => {
 		setMessages((messages) => [...messages, ...resp])
 		setLoading(false)
 	}
+	const chatPool = async () => {
+		setLoading(true)
+		const data = await fetch(`${backendUrl}/chat?getChat=true`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+		})
+		const resp = (await data.json()).messages
+		setMessages((messages) => [...messages, ...resp])
+		setLoading(false)
+	}
 	const [messages, setMessages] = useState([])
 	const [message, setMessage] = useState()
 	const [loading, setLoading] = useState(false)
 	const [cameraZoomed, setCameraZoomed] = useState(true)
+
 	const onMessagePlayed = () => {
 		setMessages((messages) => messages.slice(1))
 	}
@@ -38,6 +52,7 @@ export const ChatProvider = ({ children }) => {
 		<ChatContext.Provider
 			value={{
 				chat,
+				chatPool,
 				message,
 				onMessagePlayed,
 				loading,
