@@ -135,6 +135,9 @@ export function Avatar(props) {
 		animations.find((a) => a.name === "Idle") ? "Idle" : animations[0].name, // Check if Idle animation exists otherwise use first animation
 	)
 	useEffect(() => {
+		if (!actions[animation]) {
+			return	// Animation not found	
+		}
 		actions[animation]
 			.reset()
 			.fadeIn(mixer.stats.actions.inUse === 0 ? 0 : 0.5)

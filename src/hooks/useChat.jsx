@@ -5,7 +5,6 @@ const backendUrl = "http://localhost:3000"
 const ChatContext = createContext()
 
 export const ChatProvider = ({ children }) => {
-
 	const chat = async (message) => {
 		setLoading(true)
 		const data = await fetch(`${backendUrl}/chat`, {
@@ -16,7 +15,9 @@ export const ChatProvider = ({ children }) => {
 			body: JSON.stringify({ message }),
 		})
 		const resp = (await data.json()).messages
-		setMessages((messages) => [...messages, ...resp])
+		console.log({ messages })
+		console.log({ resp })
+		setMessages((messages) => [...messages, resp])
 		setLoading(false)
 	}
 	const chatPool = async () => {
@@ -28,7 +29,9 @@ export const ChatProvider = ({ children }) => {
 			},
 		})
 		const resp = (await data.json()).messages
-		setMessages((messages) => [...messages, ...resp])
+		// console.log({ messages })
+		// console.log({ resp })
+		setMessages((messages) => [...messages, resp])
 		setLoading(false)
 	}
 	const [messages, setMessages] = useState([])
@@ -41,7 +44,9 @@ export const ChatProvider = ({ children }) => {
 	}
 
 	useEffect(() => {
+		console.log("-messages:", messages)
 		if (messages.length > 0) {
+			// console.log('-messages:', messages)
 			setMessage(messages[0])
 		} else {
 			setMessage(null)

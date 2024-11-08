@@ -7,6 +7,7 @@ import { exec } from "node:child_process"
 import { promises as fs } from "node:fs"
 import OpenAI from "openai"
 import { WebcastPushConnection } from "tiktok-live-connector"
+import say from "say"
 
 const elevenlabs = new ElevenLabsClient({
 	// apiKey: "sk_367375957f9f9a888c2c3869b93778dc22b88098bb4872e3", // Defaults to process.env.ELEVENLABS_API_KEY
@@ -30,6 +31,12 @@ app.use(express.json())
 app.use(cors())
 const port = 3000
 
+const config = {
+	useSay: true,
+	defaultVoice: "Amélie",
+	speed: 1.05,
+}
+
 let tiktokLiveLastMessage = ""
 
 const initTiktokLiveListener = async (tiktokLiveAccount) => {
@@ -40,9 +47,18 @@ const initTiktokLiveListener = async (tiktokLiveAccount) => {
 		console.info(`Connected to roomId ${state.roomId}`)
 		console.info(`Connected to tiktokLiveAccount ${tiktokLiveAccount}`)
 
+
+		// Simulate a chat message every 10 seconds
+		setInterval(() => {
+			tiktokLiveConnection.emit("chat", {
+				// uniqueId: "123",
+				userId: "456",		
+				comment: "Hello, world!",		
+			})
+		}, 10000)
 		tiktokLiveConnection.on("chat", (data) => {
 			// console.log(`${data.uniqueId} (userId:${data.userId}) writes: ${data.comment}`)
-			if (tiktokLiveLastMessage){
+			if (tiktokLiveLastMessage) {
 				console.log(`chat skip ---:${tiktokLiveLastMessage}`)
 				return
 			}
@@ -53,12 +69,34 @@ const initTiktokLiveListener = async (tiktokLiveAccount) => {
 		console.error(error)
 	}
 }
+initTiktokLiveListener()
+const speakWithSay = (text) => {
+	return new Promise((resolve, reject) => {
+		say.speak(text, config.defaultVoice, config.speed, (err) => {
+			if (err) {
+				console.error("Erreur say:", err)
+			} else {
+				resolve()
+			}
+		})
+	})
+}
+
+// Fonction pour la synthèse vocale avec ElevenLabs
+const speakWithElevenLabs = async (text) => {
+	const audio = await elevenlabs.generate({
+		voice: "Rachel",
+		text,
+		model_id: "eleven_multilingual_v2",
+	})
+	await play(audio)
+}
 
 app.post("/chat", async (req, res) => {
 	const userMessage = req.body.message
 
 	if (userMessage?.match(/^init/)) {
-		console.log('------init-----')
+		console.log("------init-----")
 		const tiktokLiveAccount = userMessage.replace("init:", "")
 		initTiktokLiveListener(tiktokLiveAccount)
 		res.send({
@@ -95,17 +133,17 @@ app.post("/chat", async (req, res) => {
 	tiktokLiveLastMessage = ""
 })
 
+
 const askGPT = async (message) => {
 	try {
 		const text = await getText(message, { useLocal: true })
 		console.log(`resp:${text}`)
-	
-		const audio = await elevenlabs.generate({
-			voice: "Rachel",
-			text,
-			model_id: "eleven_multilingual_v2",
-		})
-		await play(audio)
+
+		if (config.useSay) {
+			await speakWithSay(text)
+		} else {
+			await speakWithElevenLabs(text)
+		}
 		return text
 	} catch (error) {
 		console.error(error)
@@ -114,6 +152,9 @@ const askGPT = async (message) => {
 
 const getText = async (message, { useLocal = false }) => {
 	if (useLocal) {
+		// console.log pour afficher l'heure 
+		const date = new Date()
+		console.log(`1--[${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}] ${message}`)
 		const res = await fetch(`http://localhost:11434/api/chat`, {
 			method: "POST",
 			headers: { "Content-Type": "application/json" },
@@ -139,6 +180,8 @@ const getText = async (message, { useLocal = false }) => {
 				stream: false,
 			}),
 		})
+		console.log(`2--[${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}] ${message}`)
+
 		const {
 			message: { content },
 		} = await res.json()
@@ -181,4 +224,5 @@ const getText = async (message, { useLocal = false }) => {
 
 app.listen(port, () => {
 	console.log(`Virtual Girlfriend listening on port ${port}`)
+	console.log(`TTS Mode: ${config.useSay ? "say" : "ElevenLabs"}`)
 })

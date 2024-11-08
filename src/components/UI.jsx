@@ -48,22 +48,24 @@ export const UI = ({ hidden, ...props }) => {
 		const init = async () => {
 			chatPool()
 		}
-		setInterval(init, 5000)
+
+		setIntervl(init, 5000)
 	}, [])
 
 	if (hidden) {
 		return null
 	}
+	console.log({ loading, message })
 	return (
 		<div className="fixed top-0 left-0 right-0 bottom-0 z-10 flex justify-between p-4 flex-col pointer-events-none">
-			<div className="self-start backdrop-blur-md bg-white bg-opacity-50 p-4 rounded-lg">
-				<h1 className="font-black text-xl">Luna ❤️</h1>
-				<p>I will always be here for you</p>
-				{/* {messages?.map((m, i) => (
+			{/* <div className="self-start backdrop-blur-md bg-white bg-opacity-50 p-4 rounded-lg"> */}
+			{/* <h1 className="font-black text-xl">Luna ❤️</h1> */}
+			{/* <p>I will always be here for you</p> */}
+			{/* {messages?.map((m, i) => (
 					<p>{m}</p>
 				))} */}
-			</div>
-			<div className="w-full flex flex-col items-end justify-center gap-4">
+			{/* </div> */}
+			<div className="opacity-10 w-full flex flex-col items-end justify-center gap-4">
 				<button
 					type="button"
 					onClick={() => setCameraZoomed(!cameraZoomed)}
@@ -143,10 +145,12 @@ export const UI = ({ hidden, ...props }) => {
 				/>
 				<button
 					type="button"
-					disabled={loading || message}
+					// disabled={loading || message}
+					disabled={loading}
 					onClick={sendMessage}
 					className={`bg-pink-500 hover:bg-pink-600 text-white p-4 px-10 font-semibold uppercase rounded-md ${
-						loading || message ? "cursor-not-allowed opacity-30" : ""
+						// loading || message ? "cursor-not-allowed opacity-30" : ""
+						loading ? "cursor-not-allowed opacity-30" : ""
 						// false ? "cursor-not-allowed opacity-30" : ""
 					}`}
 				>
