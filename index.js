@@ -9,30 +9,11 @@ import OpenAI from "openai"
 import { WebcastPushConnection } from "tiktok-live-connector"
 
 const elevenlabs = new ElevenLabsClient({
-	apiKey: "sk_367375957f9f9a888c2c3869b93778dc22b88098bb4872e3", // Defaults to process.env.ELEVENLABS_API_KEY
+	// apiKey: "sk_367375957f9f9a888c2c3869b93778dc22b88098bb4872e3", // Defaults to process.env.ELEVENLABS_API_KEY
+	apiKey: "sk_ee1070b044ecddfb65806610afc47e42a5af9f2082d01fd2", // Defaults to process.env.ELEVENLABS_API_KEY
 })
 
 dotenv.config()
-
-let tiktokLiveLastMessage = ""
-
-const initTiktokLiveListener = async (tiktokLiveAccount) => {
-	try {
-		const tiktokLiveConnection = new WebcastPushConnection(tiktokLiveAccount)
-		const state = await tiktokLiveConnection.connect()
-
-		console.info(`Connected to roomId ${state.roomId}`)
-		console.info(`Connected to tiktokLiveAccount ${tiktokLiveAccount}`)
-
-		tiktokLiveConnection.on("chat", (data) => {
-			// console.log(`${data.uniqueId} (userId:${data.userId}) writes: ${data.comment}`)
-			tiktokLiveLastMessage = data.comment
-			console.log(`chat:${data.comment}`)
-		})
-	} catch (error) {
-		console.error(error)
-	}
-}
 
 const openai = new OpenAI({
 	// apiKey: process.env.OPENAI_API_KEY || "-", // Your OpenAI API key here, I used "-" to avoid errors when the key is not set but you should not do that
@@ -49,10 +30,35 @@ app.use(express.json())
 app.use(cors())
 const port = 3000
 
+let tiktokLiveLastMessage = ""
+
+const initTiktokLiveListener = async (tiktokLiveAccount) => {
+	try {
+		const tiktokLiveConnection = new WebcastPushConnection(tiktokLiveAccount)
+		const state = await tiktokLiveConnection.connect()
+
+		console.info(`Connected to roomId ${state.roomId}`)
+		console.info(`Connected to tiktokLiveAccount ${tiktokLiveAccount}`)
+
+		tiktokLiveConnection.on("chat", (data) => {
+			// console.log(`${data.uniqueId} (userId:${data.userId}) writes: ${data.comment}`)
+			if (tiktokLiveLastMessage){
+				console.log(`chat skip ---:${tiktokLiveLastMessage}`)
+				return
+			}
+			tiktokLiveLastMessage = data.comment
+			console.log(`chat:${data.comment}`)
+		})
+	} catch (error) {
+		console.error(error)
+	}
+}
+
 app.post("/chat", async (req, res) => {
 	const userMessage = req.body.message
 
 	if (userMessage?.match(/^init/)) {
+		console.log('------init-----')
 		const tiktokLiveAccount = userMessage.replace("init:", "")
 		initTiktokLiveListener(tiktokLiveAccount)
 		res.send({
@@ -71,27 +77,75 @@ app.post("/chat", async (req, res) => {
 		})
 		return
 	}
+
 	if (!req.originalUrl?.match(/getChat/)) {
 		const messages = await askGPT(userMessage)
 		res.send({ messages })
 		return
 	}
+
 	if (!tiktokLiveLastMessage) {
 		res.send({ messages: [] })
 		return
 	}
+
 	const messages = await askGPT(tiktokLiveLastMessage)
-	
 	console.log({ messages })
 	res.send({ messages })
-})
-
-app.listen(port, () => {
-	console.log(`Virtual Girlfriend listening on port ${port}`)
+	tiktokLiveLastMessage = ""
 })
 
 const askGPT = async (message) => {
-	tiktokLiveLastMessage = ""
+	try {
+		const text = await getText(message, { useLocal: true })
+		console.log(`resp:${text}`)
+	
+		const audio = await elevenlabs.generate({
+			voice: "Rachel",
+			text,
+			model_id: "eleven_multilingual_v2",
+		})
+		await play(audio)
+		return text
+	} catch (error) {
+		console.error(error)
+	}
+}
+
+const getText = async (message, { useLocal = false }) => {
+	if (useLocal) {
+		const res = await fetch(`http://localhost:11434/api/chat`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				model: "llama3.1",
+				messages: [
+					{
+						// role: "system",
+						// content: `
+						// 	You are a virtual girlfriend.
+						// 	You will always reply with a JSON array of messages. With a maximum of 3 messages.
+						// 	Each message has a text, facialExpression, and animation property.
+						// 	The different facial expressions are: smile, sad, angry, surprised, funnyFace, and default.
+						// 	The different animations are: Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, and Angry.
+						// `,
+						role: "system",
+						content: `
+							Répond 10 mots maximum et dans la meme langue que celle de la question et reprends les mots de la question.
+						`,
+					},
+					{ role: "user", content: message },
+				],
+				stream: false,
+			}),
+		})
+		const {
+			message: { content },
+		} = await res.json()
+		console.log({ content })
+		return content
+	}
+
 	const completion = await openai.chat.completions.create({
 		model: "gpt-3.5-turbo-1106",
 		max_tokens: 1000,
@@ -108,7 +162,7 @@ const askGPT = async (message) => {
 					Each message has a text, facialExpression, and animation property.
 					The different facial expressions are: smile, sad, angry, surprised, funnyFace, and default.
 					The different animations are: Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, and Angry. 
-					`,
+				`,
 			},
 			{
 				role: "user",
@@ -121,12 +175,10 @@ const askGPT = async (message) => {
 	if (messages.messages) {
 		messages = messages.messages // ChatGPT is not 100% reliable, sometimes it directly returns an array and sometimes a JSON object with a messages property
 	}
-	console.log(`resp:${messages[0].text}`)
-	const audio = await elevenlabs.generate({
-		voice: "Rachel",
-		text: messages[messages.length - 1].text,
-		model_id: "eleven_multilingual_v2",
-	})
-	play(audio)
-	return messages
+	const text = messages[messages.length - 1].text
+	return text
 }
+
+app.listen(port, () => {
+	console.log(`Virtual Girlfriend listening on port ${port}`)
+})
