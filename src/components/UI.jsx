@@ -2,39 +2,40 @@ import { useRef, useState, useEffect } from "react"
 
 import { useChat } from "../hooks/useChat"
 
-const askGPT = async (msg) => {
-	const res = await fetch(`http://localhost:11434/api/chat`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			model: "llama2-uncensored:latest",
-			messages: [
-				// {
-				// 	role: "system",
-				// 	content: `
-				// 		Tu es une petite amie virtuelle.
-				// 		Tu répondras toujours avec un tableau JSON de messages. Avec un maximum d'un message.
-				// 		Chaque message a une propriété texte, facialExpression et animation.
-				// 		Les différentes expressions faciales sont : smile, sad, angry, surprised, funnyFace, et default.
-				// 		Les différentes animations sont : Talking_0, Talking_1, Talking_2, Crying, Laughing, Rumba, Idle, Terrified, et Angry.
-				// 		`,
-				// },
-				{ role: "user", content: msg },
-				// { role: "user", content: "Salut" },
-			],
-			stream: false,
-		}),
-	})
-	const {
-		message: { content },
-	} = await res.json()
-	console.log({ content })
-	return content
-}
-
 export const UI = ({ hidden, ...props }) => {
 	const input = useRef()
 	const { chatPool, chat, loading, cameraZoomed, setCameraZoomed, message } = useChat()
+	const [ws, setWs] = useState(null);
+	useEffect(() => {
+		// Initialize WebSocket connection
+		const websocket = new WebSocket("ws://localhost:3000")
+
+		websocket.onopen = () => {
+			console.log("Connected to WebSocket server")
+		}
+
+		websocket.onmessage = (event) => {
+			const data = JSON.parse(event.data)
+			// Handle incoming messages
+			if (data.messages) {
+				chat(data.originalMessage, data.messages)
+			}
+		}
+
+		websocket.onclose = () => {
+			console.log("Disconnected from WebSocket server")
+			// Optional: implement reconnection logic here
+		}
+
+		setWs(websocket)
+
+		// Cleanup on component unmount
+		return () => {
+			if (websocket) {
+				websocket.close()
+			}
+		}
+	}, [])
 
 	const sendMessage = async () => {
 		const text = input.current.value
@@ -49,7 +50,7 @@ export const UI = ({ hidden, ...props }) => {
 			chatPool()
 		}
 
-		setIntervl(init, 5000)
+		// setIntervl(init, 5000)
 	}, [])
 
 	if (hidden) {

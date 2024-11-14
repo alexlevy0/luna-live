@@ -26,7 +26,8 @@
     "react-dom": "^18.2.0",
     "say": "^0.16.0",
     "three": "0.153.0",
-    "tiktok-live-connector": "1.2.0"
+    "tiktok-live-connector": "1.2.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.2",

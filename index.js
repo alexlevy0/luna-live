@@ -8,6 +8,8 @@ import { promises as fs } from "node:fs"
 import OpenAI from "openai"
 import { WebcastPushConnection } from "tiktok-live-connector"
 import say from "say"
+import { WebSocketServer } from "ws"
+import http from "node:http"
 
 const elevenlabs = new ElevenLabsClient({
 	// apiKey: "sk_367375957f9f9a888c2c3869b93778dc22b88098bb4872e3", // Defaults to process.env.ELEVENLABS_API_KEY
@@ -39,6 +41,24 @@ const config = {
 
 let tiktokLiveLastMessage = ""
 
+// Create HTTP server
+const server = http.createServer(app)
+const wss = new WebSocketServer({ server })
+
+// Store connected clients
+const clients = new Set()
+
+// WebSocket connection handler
+wss.on("connection", (ws) => {
+	clients.add(ws)
+	console.log("New client connected")
+
+	ws.on("close", () => {
+		clients.delete(ws)
+		console.log("Client disconnected")
+	})
+})
+
 const initTiktokLiveListener = async (tiktokLiveAccount) => {
 	try {
 		const tiktokLiveConnection = new WebcastPushConnection(tiktokLiveAccount)
@@ -47,15 +67,6 @@ const initTiktokLiveListener = async (tiktokLiveAccount) => {
 		console.info(`Connected to roomId ${state.roomId}`)
 		console.info(`Connected to tiktokLiveAccount ${tiktokLiveAccount}`)
 
-
-		// Simulate a chat message every 10 seconds
-		setInterval(() => {
-			tiktokLiveConnection.emit("chat", {
-				// uniqueId: "123",
-				userId: "456",		
-				comment: "Hello, world!",		
-			})
-		}, 10000)
 		tiktokLiveConnection.on("chat", (data) => {
 			// console.log(`${data.uniqueId} (userId:${data.userId}) writes: ${data.comment}`)
 			if (tiktokLiveLastMessage) {
@@ -64,12 +75,21 @@ const initTiktokLiveListener = async (tiktokLiveAccount) => {
 			}
 			tiktokLiveLastMessage = data.comment
 			console.log(`chat:${data.comment}`)
+
+			// Broadcast to all connected clients
+			const response = { messages, originalMessage: data.comment }
+			for (const client of clients) {
+				if (client.readyState === 1) {
+					// Check if client is still connected
+					client.send(JSON.stringify(response))
+				}
+			}
 		})
 	} catch (error) {
 		console.error(error)
 	}
 }
-initTiktokLiveListener()
+// initTiktokLiveListener()
 const speakWithSay = (text) => {
 	return new Promise((resolve, reject) => {
 		say.speak(text, config.defaultVoice, config.speed, (err) => {
@@ -133,7 +153,6 @@ app.post("/chat", async (req, res) => {
 	tiktokLiveLastMessage = ""
 })
 
-
 const askGPT = async (message) => {
 	try {
 		const text = await getText(message, { useLocal: true })
@@ -152,7 +171,7 @@ const askGPT = async (message) => {
 
 const getText = async (message, { useLocal = false }) => {
 	if (useLocal) {
-		// console.log pour afficher l'heure 
+		// console.log pour afficher l'heure
 		const date = new Date()
 		console.log(`1--[${date.getHours()}:${date.getMinutes()}:${date.getSeconds()}] ${message}`)
 		const res = await fetch(`http://localhost:11434/api/chat`, {
@@ -222,7 +241,7 @@ const getText = async (message, { useLocal = false }) => {
 	return text
 }
 
-app.listen(port, () => {
+server.listen(port, () => {
 	console.log(`Virtual Girlfriend listening on port ${port}`)
 	console.log(`TTS Mode: ${config.useSay ? "say" : "ElevenLabs"}`)
 })
